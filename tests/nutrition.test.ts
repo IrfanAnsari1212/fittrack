@@ -28,6 +28,7 @@ import {
   assignDietPlan,
   endDietPlanAssignment,
   getActiveDietPlan,
+  getDietPlanForDate,
   listDietPlanAssignments,
 } from "@/server/services/nutrition/assignment-service"
 import { getDailyNutritionLog, getOrCreateDailyNutritionLog } from "@/server/services/nutrition/daily-log-service"
@@ -396,7 +397,18 @@ describe("diet plan assignments", () => {
 
   test("re-assigning completes the previous active assignment (one active per member)", async () => {
     const planA2 = (await createDietPlan(adminA, { name: "Cut" })).id
-    await assignDietPlan(adminA, { dietPlanId: planA2, memberId: memberA1.id, startDate: "2026-10-01" })
+    // Without explicit confirmation, an existing active plan is never overwritten.
+    await assert.rejects(
+      assignDietPlan(adminA, { dietPlanId: planA2, memberId: memberA1.id, startDate: "2026-10-01" }),
+      isCode("ACTIVE_ASSIGNMENT_EXISTS")
+    )
+    assert.equal((await getActiveDietPlan(selfTarget(memberA1)))?.plan.id, planA, "old plan untouched")
+    // Replacing can't start before the current plan started.
+    await assert.rejects(
+      assignDietPlan(adminA, { dietPlanId: planA2, memberId: memberA1.id, startDate: "2026-08-31", replaceActive: true }),
+      isValidation("startDate")
+    )
+    await assignDietPlan(adminA, { dietPlanId: planA2, memberId: memberA1.id, startDate: "2026-10-01", replaceActive: true })
     const history = await listDietPlanAssignments(selfTarget(memberA1))
     assert.deepEqual(history.map((h) => [h.dietPlanName, h.status]), [
       ["Cut", "ACTIVE"],
@@ -569,7 +581,7 @@ describe("calendar dates come from the caller, never the server clock", () => {
       assert.equal((await DietPlanAssignment.findOne({ gymId: adminB.gymId, _id: first.id }).lean())?.startDate, "2026-10-02")
 
       // Re-assigning ends the previous plan on the supplied start day too.
-      const second = await assignDietPlan(adminB, { dietPlanId: plan2, memberId: memberB2.id, startDate: "2026-10-05" })
+      const second = await assignDietPlan(adminB, { dietPlanId: plan2, memberId: memberB2.id, startDate: "2026-10-05", replaceActive: true })
       const prev = await DietPlanAssignment.findOne({ gymId: adminB.gymId, _id: first.id }).lean()
       assert.equal(prev?.status, "COMPLETED")
       assert.equal(prev?.endDate, "2026-10-05")
@@ -585,11 +597,15 @@ describe("calendar dates come from the caller, never the server clock", () => {
     })
   })
 
-  test("an end date before the assignment's start is rejected", async () => {
+  test("COMPLETED can't end before the start; CANCELLED before the start means it never applied", async () => {
     const plan = (await createDietPlan(adminB, { name: "TZ plan 3" })).id
     const { id } = await assignDietPlan(adminB, { dietPlanId: plan, memberId: memberB2.id, startDate: "2026-11-10" })
-    await assert.rejects(endDietPlanAssignment(adminB, id, { status: "CANCELLED", endDate: "2026-11-09" }), isValidation("endDate"))
-    await endDietPlanAssignment(adminB, id, { status: "CANCELLED", endDate: "2026-11-10" })
+    await assert.rejects(endDietPlanAssignment(adminB, id, { status: "COMPLETED", endDate: "2026-11-09" }), isValidation("endDate"))
+    // Cancelling a future plan "today" (before its start) is allowed…
+    await endDietPlanAssignment(adminB, id, { status: "CANCELLED", endDate: "2026-11-09" })
+    // …and it then covers no day at all.
+    assert.equal(await getDietPlanForDate(selfTarget(memberB2), "2026-11-10"), null)
+    assert.equal(await getDietPlanForDate(selfTarget(memberB2), "2026-11-09"), null)
   })
 
   test("omitting a calendar date is rejected, never silently defaulted", async () => {

@@ -4,13 +4,18 @@ const labels: Record<string, string> = {
   ACTIVE: "Active",
   DISABLED: "Disabled",
   SUSPENDED: "Suspended",
+  ARCHIVED: "Archived",
+  COMPLETED: "Completed",
+  CANCELLED: "Cancelled",
 }
 
-/** Status pill for users and gyms. */
+const variants: Record<string, "secondary" | "outline" | "destructive"> = {
+  ACTIVE: "secondary",
+  ARCHIVED: "outline",
+  COMPLETED: "outline",
+}
+
+/** Status pill for users, gyms, foods, plans and assignments. */
 export function StatusBadge({ status }: { status: string }) {
-  return (
-    <Badge variant={status === "ACTIVE" ? "secondary" : "destructive"}>
-      {labels[status] ?? status}
-    </Badge>
-  )
+  return <Badge variant={variants[status] ?? "destructive"}>{labels[status] ?? status}</Badge>
 }

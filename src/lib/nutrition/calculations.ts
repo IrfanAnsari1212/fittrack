@@ -98,3 +98,48 @@ export function snapshotConsumption(
     ...nutritionFor(food, quantity, unit),
   }
 }
+
+/**
+ * Rescale an already-snapshotted entry to a new quantity (same unit).
+ * Uses only the entry's own stored values — never the current Food — so
+ * editing a logged quantity can't pull in later changes to the food.
+ */
+export function rescaleSnapshot(
+  snapshot: NutritionTotals & { quantity: number },
+  newQuantity: number
+): NutritionTotals {
+  if (!(snapshot.quantity > 0)) throw new RangeError("Snapshot quantity must be greater than 0")
+  if (!Number.isFinite(newQuantity) || newQuantity < 0) {
+    throw new RangeError("Quantity must be a non-negative number")
+  }
+  const factor = newQuantity / snapshot.quantity
+  return {
+    calories: round1(snapshot.calories * factor),
+    protein: round1(snapshot.protein * factor),
+    carbs: snapshot.carbs == null ? null : round1(snapshot.carbs * factor),
+    fat: snapshot.fat == null ? null : round1(snapshot.fat * factor),
+  }
+}
+
+export interface GoalProgress {
+  consumed: number
+  target: number
+  /** Never negative. */
+  remaining: number
+  /** How far above target (0 when at/below). */
+  over: number
+  /** 0–100, capped (for progress bars). */
+  percent: number
+}
+
+/** Actual consumption vs. a daily target, without negative "remaining". */
+export function progressToward(consumed: number, target: number): GoalProgress {
+  const round = (v: number) => Math.round(v * 10) / 10
+  return {
+    consumed: round(consumed),
+    target,
+    remaining: round(Math.max(0, target - consumed)),
+    over: round(Math.max(0, consumed - target)),
+    percent: target > 0 ? Math.min(100, Math.round((consumed / target) * 100)) : 0,
+  }
+}

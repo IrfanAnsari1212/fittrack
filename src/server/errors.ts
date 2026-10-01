@@ -9,6 +9,7 @@ export type DomainErrorCode =
   | "FOOD_IN_USE"
   | "UNIT_MISMATCH"
   | "CONFLICT"
+  | "ACTIVE_ASSIGNMENT_EXISTS"
 
 /** Expected, user-facing failures thrown by services. */
 export class DomainError extends Error {

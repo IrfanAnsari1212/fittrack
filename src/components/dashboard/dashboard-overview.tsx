@@ -1,9 +1,8 @@
 import { DashboardCardSkeleton } from "@/components/dashboard/dashboard-card"
-import { NutritionStats } from "@/components/dashboard/nutrition-stats"
+import { DashboardNutrition } from "@/components/dashboard/dashboard-nutrition"
 import { ProgressOverviewCard } from "@/components/dashboard/progress-overview-card"
 import { RecoverySummaryCard } from "@/components/dashboard/recovery-summary-card"
 import { StatCardSkeleton } from "@/components/dashboard/stat-card"
-import { TodaysMealsCard } from "@/components/dashboard/todays-meals-card"
 import { TodaysWorkoutCard } from "@/components/dashboard/todays-workout-card"
 import { WeightSummaryCard } from "@/components/dashboard/weight-summary-card"
 import type { DashboardData } from "@/types/dashboard"
@@ -12,11 +11,8 @@ import type { DashboardData } from "@/types/dashboard"
 export function DashboardOverview({ data }: { data: DashboardData }) {
   return (
     <div className="space-y-6">
-      <NutritionStats data={data.nutrition} />
-      <div className="grid gap-6 lg:grid-cols-2">
-        <TodaysMealsCard meals={data.meals} />
-        <TodaysWorkoutCard workout={data.workout} />
-      </div>
+      {/* Real nutrition for the member's local day; the cards below are still mock data. */}
+      <DashboardNutrition besideMeals={<TodaysWorkoutCard workout={data.workout} />} />
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
         <RecoverySummaryCard recovery={data.recovery} />
         <WeightSummaryCard weight={data.weight} />
@@ -31,8 +27,8 @@ export function DashboardOverview({ data }: { data: DashboardData }) {
 export function DashboardOverviewSkeleton() {
   return (
     <div className="space-y-6" aria-busy="true" aria-label="Loading dashboard">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {Array.from({ length: 4 }, (_, i) => (
+      <div className="grid gap-4 sm:grid-cols-2">
+        {Array.from({ length: 2 }, (_, i) => (
           <StatCardSkeleton key={i} />
         ))}
       </div>

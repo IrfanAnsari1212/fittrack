@@ -2,6 +2,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import type { FormState } from "@/lib/form-state"
+import { cn } from "@/lib/utils"
 
 interface FormFieldProps {
   name: string
@@ -14,6 +15,10 @@ interface FormFieldProps {
   placeholder?: string
   description?: string
   multiline?: boolean
+  /** For numeric inputs. */
+  step?: string
+  min?: string
+  className?: string
 }
 
 /** Label + input + server-side error, wired for screen readers. */
@@ -28,6 +33,9 @@ export function FormField({
   placeholder,
   description,
   multiline,
+  step,
+  min,
+  className,
 }: FormFieldProps) {
   const errors = state.fieldErrors?.[name]
   const value = state.values?.[name] ?? defaultValue ?? ""
@@ -50,7 +58,7 @@ export function FormField({
   }
 
   return (
-    <div className="space-y-2">
+    <div className={cn("space-y-2", className)}>
       <Label htmlFor={name}>
         {label}
         {!required && <span className="font-normal text-muted-foreground"> (optional)</span>}
@@ -58,7 +66,7 @@ export function FormField({
       {multiline ? (
         <Textarea key={value} rows={3} {...shared} />
       ) : (
-        <Input key={value} type={type} autoComplete={autoComplete} {...shared} />
+        <Input key={value} type={type} autoComplete={autoComplete} step={step} min={min} {...shared} />
       )}
       {description && (
         <p id={descriptionId} className="text-xs text-muted-foreground">

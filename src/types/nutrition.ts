@@ -1,5 +1,5 @@
 import type { CalendarDate } from "@/lib/nutrition/calendar-date"
-import type { NutritionTotals } from "@/lib/nutrition/calculations"
+import type { GoalProgress, NutritionTotals } from "@/lib/nutrition/calculations"
 import type { ServingUnit } from "@/lib/nutrition/units"
 
 /** Client-safe nutrition views returned by services. Timestamps are ISO strings. */
@@ -59,6 +59,10 @@ export interface DietPlanDetail {
   name: string
   description: string | null
   status: "ACTIVE" | "ARCHIVED"
+  /** null = gym plan (admin library); a member id = that member's personal plan. */
+  ownerUserId: string | null
+  /** For a personal copy made by "customize": the gym plan it was copied from. */
+  sourcePlanId: string | null
   createdAt: string
   updatedAt: string
   meals: PlannedMealView[]
@@ -70,6 +74,8 @@ export interface DietPlanAssignmentView {
   id: string
   dietPlanId: string
   dietPlanName: string
+  /** Whether the assigned plan is the gym's shared plan or the member's own. */
+  dietPlanKind: "GYM" | "PERSONAL"
   memberId: string
   startDate: CalendarDate
   endDate: CalendarDate | null
@@ -97,4 +103,20 @@ export interface DailyNutritionLogView {
   date: CalendarDate
   entries: ConsumedEntryView[]
   totals: NutritionTotals
+}
+
+export interface NutritionDayView {
+  date: CalendarDate
+  goal: NutritionGoalView | null
+  /** The plan that applies on `date` (not just "the active one"). */
+  plan: { assignment: DietPlanAssignmentView; plan: DietPlanDetail } | null
+  log: DailyNutritionLogView | null
+  /** ACTUAL consumption only — never planned totals. */
+  consumed: NutritionTotals
+  /** Planned meals with at least one logged entry linked to them. */
+  completedMealIds: string[]
+  progress: {
+    calories: GoalProgress
+    protein: GoalProgress
+  } | null
 }

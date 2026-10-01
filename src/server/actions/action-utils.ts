@@ -2,7 +2,7 @@ import "server-only"
 
 import { z } from "zod"
 
-import type { FormState } from "@/lib/form-state"
+import type { ActionResult, FormState } from "@/lib/form-state"
 import { formDataToObject } from "@/lib/validations/common"
 import { DomainError, ValidationError } from "@/server/errors"
 
@@ -37,6 +37,8 @@ const messages: Record<DomainError["code"], string> = {
   FOOD_IN_USE: "This food is used in a diet plan. Archive it instead.",
   UNIT_MISMATCH: "Use the food's own unit or \"serving\".",
   CONFLICT: "Something changed at the same time. Please try again.",
+  ACTIVE_ASSIGNMENT_EXISTS:
+    "This member already has an active diet plan. End it first, or confirm replacing it.",
 }
 
 export function domainErrorState(
@@ -52,4 +54,30 @@ export function domainErrorState(
       : { error: messages[error.code], values: echoValues(values) }
   }
   throw error
+}
+
+const GENERIC_ERROR = "Something went wrong. Please try again."
+
+/**
+ * Like `domainErrorState`, but never lets an unexpected error reach the
+ * browser: it is logged server-side and replaced by a generic message.
+ */
+export function toFormError(error: unknown, values: Record<string, string> = {}): FormState {
+  if (error instanceof DomainError) {
+    return { ...domainErrorState(error, values), code: error.code }
+  }
+  console.error("[action] unexpected error", error)
+  return { error: GENERIC_ERROR, values: echoValues(values) }
+}
+
+/** For non-form actions: map an error to a safe `ActionResult`. */
+export function toActionError(error: unknown): Extract<ActionResult, { ok: false }> {
+  if (error instanceof ValidationError) {
+    return { ok: false, error: messages.INVALID_INPUT, fieldErrors: error.fieldErrors, code: error.code }
+  }
+  if (error instanceof DomainError) {
+    return { ok: false, error: messages[error.code], code: error.code }
+  }
+  console.error("[action] unexpected error", error)
+  return { ok: false, error: GENERIC_ERROR }
 }

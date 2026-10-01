@@ -1,5 +1,6 @@
 import {
   Activity,
+  Apple,
   BarChart3,
   Building2,
   ClipboardList,
@@ -42,7 +43,8 @@ const navigationByRole: Record<Role, NavSection[]> = {
         { title: "Dashboard", href: "/admin", icon: LayoutDashboard, exact: true },
         { title: "Members", href: "/admin/members", icon: Users },
         { title: "Workout Plans", href: "/admin/workout-plans", icon: ClipboardList, disabled: true },
-        { title: "Diet Plans", href: "/admin/diet-plans", icon: Salad, disabled: true },
+        { title: "Diet Plans", href: "/admin/diet-plans", icon: Salad },
+        { title: "Food Library", href: "/admin/foods", icon: Apple },
         { title: "Analytics", href: "/admin/analytics", icon: BarChart3, disabled: true },
         { title: "Settings", href: "/admin/settings", icon: Settings },
       ],

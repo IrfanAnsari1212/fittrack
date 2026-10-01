@@ -180,6 +180,12 @@ export const assignDietPlanSchema = z
     /** First day of the plan, in the gym/member timezone. Required. */
     startDate: calendarDateSchema,
     endDate: optionalCalendarDate,
+    /**
+     * Explicit confirmation to end the member's current ACTIVE plan and
+     * assign this one in the same transaction. Without it, assigning to a
+     * member who already has an active plan is rejected.
+     */
+    replaceActive: z.preprocess((v) => v === true || v === "true" || v === "on", z.boolean()),
   })
   .refine((v) => !v.endDate || v.endDate >= v.startDate, {
     message: "End date can't be before the start date",
@@ -191,6 +197,7 @@ export interface AssignDietPlanInput {
   /** "YYYY-MM-DD" in the gym/member timezone. */
   startDate: string
   endDate?: string
+  replaceActive?: boolean | string
 }
 
 export const endAssignmentSchema = z.object({
@@ -199,3 +206,67 @@ export const endAssignmentSchema = z.object({
   status: z.enum(["COMPLETED", "CANCELLED"], { error: "Choose COMPLETED or CANCELLED" }),
 })
 export type EndAssignmentInput = z.input<typeof endAssignmentSchema>
+
+// ── Actual consumption (daily log entries) ───────────────────────────────
+
+export const consumedItemSchema = z.object({
+  foodId: objectIdSchema,
+  quantity: requiredNumber({ positive: true, max: 100000 }),
+  unit: servingUnitSchema,
+})
+
+/**
+ * Log one or more foods actually eaten on a day. `dietPlanMealId` optionally
+ * links the entries to a planned meal (used to derive the meal checklist);
+ * the server verifies it belongs to the member's plan for that day.
+ */
+export const logConsumptionSchema = z.object({
+  dietPlanMealId: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    objectIdSchema.optional()
+  ),
+  items: z.array(consumedItemSchema).min(1, "Add at least one food").max(30, "Too many foods at once"),
+})
+export interface LogConsumptionInput {
+  dietPlanMealId?: string
+  items: { foodId: string; quantity: NumericInput; unit: ServingUnit }[]
+}
+
+/** Editing a logged entry: quantity only, in the entry's original unit. */
+export const consumedQuantitySchema = z.object({
+  quantity: requiredNumber({ positive: true, max: 100000 }),
+})
+export interface ConsumedQuantityInput {
+  quantity: NumericInput
+}
+
+// ── Member-owned diets ───────────────────────────────────────────────────
+
+/** A member switching to one of their OWN personal plans (no memberId: it's always themselves). */
+export const assignMyDietPlanSchema = z
+  .object({
+    dietPlanId: objectIdSchema,
+    /** First day, in the member's local timezone. Required. */
+    startDate: calendarDateSchema,
+    endDate: optionalCalendarDate,
+    replaceActive: z.preprocess((v) => v === true || v === "true" || v === "on", z.boolean()),
+  })
+  .refine((v) => !v.endDate || v.endDate >= v.startDate, {
+    message: "End date can't be before the start date",
+    path: ["endDate"],
+  })
+export interface AssignMyDietPlanInput {
+  dietPlanId: string
+  startDate: string
+  endDate?: string
+  replaceActive?: boolean | string
+}
+
+/** "Customize my plan": copy the current gym plan into a personal plan from this day. */
+export const customizeMyDietPlanSchema = z.object({
+  /** The member's local day the personal copy takes over. Required. */
+  startDate: calendarDateSchema,
+})
+export interface CustomizeMyDietPlanInput {
+  startDate: string
+}

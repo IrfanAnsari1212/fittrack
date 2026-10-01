@@ -88,6 +88,16 @@ Both use a throwaway in-memory MongoDB; they never touch `MONGODB_URI`.
 - Nutrition math lives in `src/lib/nutrition/calculations.ts` (pure, tested). Days are `"YYYY-MM-DD"` strings.
 - **Calendar dates are always supplied by the caller.** User-facing days — `getCurrentNutritionGoal(asOf)`, `setNutritionGoal({ effectiveFrom })`, `assignDietPlan({ startDate })`, `endDietPlanAssignment({ endDate })`, daily-log `date` — are required parameters, computed by the caller in the relevant user/gym timezone (e.g. in the browser: `new Intl.DateTimeFormat("en-CA").format(new Date())`). Services never fall back to the server's UTC clock, which is a day off from members near midnight and would store the wrong day; a missing date is a validation error. A stored per-user/per-gym timezone is not implemented yet.
 
+### Nutrition UI (Module 3B)
+
+- **Gym Admin:** Food Library (`/admin/foods`), Diet Plans + builder (`/admin/diet-plans/[planId]`), plan assignment and goals on the member page (`/admin/members/[memberId]`).
+- **Member:** `/nutrition?date=YYYY-MM-DD` — goal, the plan that applies that day, actual logging, history by date. Without `?date` the browser redirects to its local today. The dashboard's nutrition widgets fetch with the browser's date.
+- **Assigning over an active plan is refused** (`ACTIVE_ASSIGNMENT_EXISTS`) unless the admin explicitly confirms (`replaceActive`), which ends the old plan in the same transaction.
+- **Planned ≠ consumed:** the meal checklist is derived from logged entries linked to a meal; ticking/opening a meal never records anything by itself.
+- **Gym plans vs personal plans:** `DietPlan.ownerUserId = null` is a gym plan (admin library, assignable); a member id makes it that member's personal plan. The plan service derives the editable scope from the role — admins edit gym plans only, members only their own plans — so a member can never mutate a shared gym plan, and a personal plan can never be assigned to someone else.
+- **Customize = copy:** "Customize" copies the member's assigned gym plan into a personal plan (`sourcePlanId`), ends the gym assignment on the member's local day and assigns the copy, in one transaction. Other members on the gym plan are unaffected; earlier days still resolve to the gym plan. Members can also create their own plans (`/nutrition/plans`) and switch to them (explicit replace rule). Goals: both member and admin can set them; history is kept per start day.
+- Server actions live in `src/server/actions/{food,diet-plan,member-nutrition-admin,nutrition}-actions.ts` — they authenticate (`require*`) and delegate; validation and rules stay in the services.
+
 ### Where things live
 
 ```

@@ -85,3 +85,10 @@ export async function requireGymAccess(gymId: string): Promise<SessionUser> {
   if (user.gymId !== gymId) redirect("/forbidden")
   return user as GymUser
 }
+
+/** A GYM_ADMIN or MEMBER (anyone who belongs to a gym). */
+export async function requireGymUser(): Promise<GymUser> {
+  const user = await requireRole("GYM_ADMIN", "MEMBER")
+  if (!user.gymId) redirect("/forbidden")
+  return user as GymUser
+}

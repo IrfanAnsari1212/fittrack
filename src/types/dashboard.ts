@@ -4,27 +4,6 @@
  * and should be mapped into these shapes.
  */
 
-export interface MacroTarget {
-  consumed: number
-  target: number
-}
-
-export interface DailyNutritionSummary {
-  calories: MacroTarget
-  protein: MacroTarget
-}
-
-export type MealStatus = "completed" | "upcoming" | "skipped"
-
-export interface MealSummary {
-  id: string
-  name: string
-  time: string // "HH:mm", 24h
-  calories: number
-  protein: number
-  status: MealStatus
-}
-
 export interface WorkoutExerciseSummary {
   id: string
   name: string
@@ -74,8 +53,6 @@ export interface ProgressGoal {
 }
 
 export interface DashboardData {
-  nutrition: DailyNutritionSummary
-  meals: MealSummary[]
   workout: WorkoutSummary | null
   recovery: RecoverySummary | null
   weight: WeightSummary | null
