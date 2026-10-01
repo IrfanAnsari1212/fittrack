@@ -8,6 +8,14 @@ import { Food } from "@/server/models/food"
 import { Gym } from "@/server/models/gym"
 import { NutritionGoal } from "@/server/models/nutrition-goal"
 import { User } from "@/server/models/user"
+import { Exercise } from "@/server/models/exercise"
+import { ExerciseSession } from "@/server/models/exercise-session"
+import { SetLog } from "@/server/models/set-log"
+import { WorkoutPlan } from "@/server/models/workout-plan"
+import { WorkoutPlanAssignment } from "@/server/models/workout-plan-assignment"
+import { WorkoutPlanDay } from "@/server/models/workout-plan-day"
+import { WorkoutPlanExercise } from "@/server/models/workout-plan-exercise"
+import { WorkoutSession } from "@/server/models/workout-session"
 
 const allModels = [
   Gym,
@@ -19,6 +27,14 @@ const allModels = [
   DietPlanMealFood,
   DietPlanAssignment,
   DailyNutritionLog,
+  Exercise,
+  ExerciseSession,
+  SetLog,
+  WorkoutPlan,
+  WorkoutPlanAssignment,
+  WorkoutPlanDay,
+  WorkoutPlanExercise,
+  WorkoutSession,
 ]
 
 /**

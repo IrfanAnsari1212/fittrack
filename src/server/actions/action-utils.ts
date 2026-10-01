@@ -32,13 +32,18 @@ const messages: Record<DomainError["code"], string> = {
   EMAIL_TAKEN: "An account with this email already exists.",
   NOT_FOUND: "This record doesn't exist or you don't have access to it.",
   INVALID_INPUT: "Please check the highlighted fields.",
-  PLAN_ARCHIVED: "This diet plan is archived and can't be changed or assigned.",
+  PLAN_ARCHIVED: "This plan is archived and can't be changed or assigned.",
   FOOD_ARCHIVED: "This food is archived and can't be added to plans.",
   FOOD_IN_USE: "This food is used in a diet plan. Archive it instead.",
   UNIT_MISMATCH: "Use the food's own unit or \"serving\".",
   CONFLICT: "Something changed at the same time. Please try again.",
   ACTIVE_ASSIGNMENT_EXISTS:
     "This member already has an active diet plan. End it first, or confirm replacing it.",
+  ACTIVE_WORKOUT_ASSIGNMENT_EXISTS: "Member already has an active workout plan.",
+  EXERCISE_ARCHIVED: "This exercise is archived and can't be added to plans.",
+  SESSION_IN_PROGRESS: "You already have a workout in progress. Finish or discard it first.",
+  SESSION_CLOSED: "This workout is finished and can't be changed.",
+  EMPTY_SESSION: "Complete at least one set before finishing the workout.",
 }
 
 export function domainErrorState(

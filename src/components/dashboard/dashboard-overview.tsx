@@ -11,8 +11,8 @@ import type { DashboardData } from "@/types/dashboard"
 export function DashboardOverview({ data }: { data: DashboardData }) {
   return (
     <div className="space-y-6">
-      {/* Real nutrition for the member's local day; the cards below are still mock data. */}
-      <DashboardNutrition besideMeals={<TodaysWorkoutCard workout={data.workout} />} />
+      {/* Real nutrition for the member's local day; recovery/weight/progress below are still mock data. */}
+      <DashboardNutrition besideMeals={<TodaysWorkoutCard />} />
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
         <RecoverySummaryCard recovery={data.recovery} />
         <WeightSummaryCard weight={data.weight} />

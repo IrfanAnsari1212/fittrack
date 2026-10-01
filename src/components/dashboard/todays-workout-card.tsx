@@ -1,61 +1,130 @@
-import { Clock, Dumbbell } from "lucide-react"
+"use client"
+
+import { useEffect, useState } from "react"
+import Link from "next/link"
+import { CheckCircle2, Dumbbell, Play } from "lucide-react"
 
 import { EmptyState } from "@/components/common/empty-state"
-import { DashboardCard } from "@/components/dashboard/dashboard-card"
+import { DashboardCard, DashboardCardSkeleton } from "@/components/dashboard/dashboard-card"
 import { Badge } from "@/components/ui/badge"
-import type { WorkoutSummary } from "@/types/dashboard"
+import { Button } from "@/components/ui/button"
+import { StartWorkoutButton } from "@/components/workout/member/start-workout-button"
+import type { ActionResult } from "@/lib/form-state"
+import { useLocalCalendarDate } from "@/lib/nutrition/use-local-date"
+import { formatTarget } from "@/lib/workout/format"
+import { getWorkoutDayAction } from "@/server/actions/workout-actions"
+import type { WorkoutDayOverview } from "@/types/workout"
 
-export function TodaysWorkoutCard({
-  workout,
-}: {
-  workout: WorkoutSummary | null
-}) {
+/**
+ * Real workout for the member's LOCAL today. The dashboard is server
+ * rendered without knowing the member's day, so this widget asks the browser
+ * for the date and fetches the overview through a server action. "Today's
+ * workout" is the next day in the plan's rotation; nothing is invented when
+ * there is no plan.
+ */
+export function TodaysWorkoutCard() {
+  const date = useLocalCalendarDate()
+  const [result, setResult] = useState<{ date: string; value: ActionResult<WorkoutDayOverview> }>()
+
+  useEffect(() => {
+    if (!date) return
+    let cancelled = false
+    getWorkoutDayAction(date).then((value) => {
+      if (!cancelled) setResult({ date, value })
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [date])
+
+  const loaded = result?.date === date ? result.value : undefined
+  if (!loaded) return <DashboardCardSkeleton rows={4} />
+
+  if (!loaded.ok) {
+    return (
+      <DashboardCard title="Today's workout" icon={Dumbbell}>
+        <p role="alert" className="text-sm text-destructive">Couldn&apos;t load today&apos;s workout. {loaded.error}</p>
+      </DashboardCard>
+    )
+  }
+
+  const overview = loaded.data!
+  const href = `/workouts?date=${overview.date}`
+  const planDay = overview.plan?.plan.days.find((d) => d.id === overview.suggestedDayId)
+
+  if (overview.inProgress) {
+    return (
+      <DashboardCard title="Today's workout" icon={Dumbbell} action={<Badge>In progress</Badge>}>
+        <div className="space-y-3">
+          <p className="font-medium">{overview.inProgress.dayName}</p>
+          <Button className="w-full" nativeButton={false} render={<Link href={`/workouts/session/${overview.inProgress.id}`} />}>
+            <Play data-icon="inline-start" />
+            Resume workout
+          </Button>
+        </div>
+      </DashboardCard>
+    )
+  }
+
+  if (!planDay) {
+    return (
+      <DashboardCard title="Today's workout" icon={Dumbbell}>
+        <EmptyState
+          icon={Dumbbell}
+          title="No workout planned for today."
+          action={
+            <Button variant="outline" size="sm" nativeButton={false} render={<Link href={href} />}>
+              Open workouts
+            </Button>
+          }
+        />
+      </DashboardCard>
+    )
+  }
+
+  const doneToday = overview.completedToday.length > 0
+  const totalSets = planDay.exercises.reduce((n, e) => n + e.sets, 0)
+
   return (
     <DashboardCard
       title="Today's workout"
       icon={Dumbbell}
       action={
-        workout && (
-          <Badge variant={workout.completed ? "default" : "outline"}>
-            {workout.completed ? "Completed" : "Planned"}
+        doneToday ? (
+          <Badge variant="default">
+            <CheckCircle2 data-icon="inline-start" />
+            Done today
           </Badge>
+        ) : (
+          <Badge variant="outline">Planned</Badge>
         )
       }
     >
-      {!workout ? (
-        <EmptyState
-          icon={Dumbbell}
-          title="Rest day"
-          description="No workout scheduled for today."
-        />
-      ) : (
-        <div className="space-y-4">
-          <div>
-            <p className="font-medium">{workout.name}</p>
-            <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-              <span>{workout.focus}</span>
-              <span className="flex items-center gap-1">
-                <Clock className="size-3.5" aria-hidden />
-                {workout.durationMinutes} min
-              </span>
-            </p>
-          </div>
-          <ul className="space-y-2">
-            {workout.exercises.map((exercise) => (
-              <li
-                key={exercise.id}
-                className="flex items-center justify-between gap-3 rounded-lg bg-muted/50 px-3 py-2 text-sm"
-              >
-                <span className="truncate font-medium">{exercise.name}</span>
-                <span className="shrink-0 text-muted-foreground tabular-nums">
-                  {exercise.sets} × {exercise.reps}
-                  {exercise.weightKg !== undefined && ` · ${exercise.weightKg} kg`}
-                </span>
-              </li>
-            ))}
-          </ul>
+      <div className="space-y-4">
+        <div>
+          <p className="font-medium">{planDay.name}</p>
+          <p className="text-sm text-muted-foreground">
+            {planDay.exercises.length} {planDay.exercises.length === 1 ? "exercise" : "exercises"} · {totalSets} sets
+          </p>
         </div>
-      )}
+        <ul className="space-y-2">
+          {planDay.exercises.slice(0, 5).map((e) => (
+            <li key={e.id} className="flex items-center justify-between gap-3 rounded-lg bg-muted/50 px-3 py-2 text-sm">
+              <span className="truncate font-medium">{e.exerciseName}</span>
+              <span className="shrink-0 text-muted-foreground tabular-nums">{formatTarget(e)}</span>
+            </li>
+          ))}
+          {planDay.exercises.length > 5 && (
+            <li className="px-1 text-xs text-muted-foreground">+ {planDay.exercises.length - 5} more</li>
+          )}
+        </ul>
+        <div className="flex flex-wrap gap-2">
+          <StartWorkoutButton date={overview.date} dayId={planDay.id} className="flex-1" label={doneToday ? "Start another" : "Start workout"} />
+          <Button variant="outline" nativeButton={false} render={<Link href={href} />}>
+            Open
+          </Button>
+        </div>
+      </div>
     </DashboardCard>
   )
 }

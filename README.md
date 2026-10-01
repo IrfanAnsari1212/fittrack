@@ -98,6 +98,18 @@ Both use a throwaway in-memory MongoDB; they never touch `MONGODB_URI`.
 - **Customize = copy:** "Customize" copies the member's assigned gym plan into a personal plan (`sourcePlanId`), ends the gym assignment on the member's local day and assigns the copy, in one transaction. Other members on the gym plan are unaffected; earlier days still resolve to the gym plan. Members can also create their own plans (`/nutrition/plans`) and switch to them (explicit replace rule). Goals: both member and admin can set them; history is kept per start day.
 - Server actions live in `src/server/actions/{food,diet-plan,member-nutrition-admin,nutrition}-actions.ts` — they authenticate (`require*`) and delegate; validation and rules stay in the services.
 
+### Workouts (Module 4)
+
+Same ownership architecture as nutrition: **Gym Plan → Assignment → Customize → Personal Plan → Actual Workout**.
+
+- **Planned** (WorkoutPlan → WorkoutPlanDay → WorkoutPlanExercise → Exercise, assigned via WorkoutPlanAssignment) is separate from **actual** (WorkoutSession → ExerciseSession → SetLog). Logging never writes to a plan; each ExerciseSession keeps an immutable snapshot of the prescription it came from, so planned vs actual can be compared later (Module 5 — no progression logic exists yet).
+- **Gym Admin:** Exercise library (`/admin/exercises`), workout plans + builder (`/admin/workouts[/planId]`), assignment and recent workouts on the member page.
+- **Member:** `/workouts?date=YYYY-MM-DD` (today = next day in the plan's rotation; no fixed weekly schedule), `/workouts/plans`, `/workouts/session/[id]` (mobile-first live logging), `/workouts/history`. The dashboard card is real.
+- **Ownership:** `WorkoutPlan.ownerUserId` null = gym plan, a member id = that member's personal plan (immutable). The service derives the editable scope from the role, so members can't reach gym plans and admins can only view personal ones. Members use the gym's exercise library but can't create exercises.
+- **Customize = copy:** copies plan, days and planned exercises (new ids), ends the gym assignment on the member's local day and assigns the copy in one transaction. An existing active copy of the same gym plan is reused, not duplicated.
+- **One active plan per member** (partial unique index) and **one workout in progress per member**; replacing a plan needs explicit `replaceActive`.
+- **Dates:** calendar days (assignment start/end, session `date`, history filters) come from the browser; `startedAt`/`completedAt` are real instants.
+
 ### Where things live
 
 ```

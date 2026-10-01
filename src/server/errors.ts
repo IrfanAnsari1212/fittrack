@@ -10,6 +10,11 @@ export type DomainErrorCode =
   | "UNIT_MISMATCH"
   | "CONFLICT"
   | "ACTIVE_ASSIGNMENT_EXISTS"
+  | "ACTIVE_WORKOUT_ASSIGNMENT_EXISTS"
+  | "EXERCISE_ARCHIVED"
+  | "SESSION_IN_PROGRESS"
+  | "SESSION_CLOSED"
+  | "EMPTY_SESSION"
 
 /** Expected, user-facing failures thrown by services. */
 export class DomainError extends Error {

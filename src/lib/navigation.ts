@@ -42,7 +42,8 @@ const navigationByRole: Record<Role, NavSection[]> = {
       items: [
         { title: "Dashboard", href: "/admin", icon: LayoutDashboard, exact: true },
         { title: "Members", href: "/admin/members", icon: Users },
-        { title: "Workout Plans", href: "/admin/workout-plans", icon: ClipboardList, disabled: true },
+        { title: "Workout Plans", href: "/admin/workouts", icon: ClipboardList },
+        { title: "Exercises", href: "/admin/exercises", icon: Dumbbell },
         { title: "Diet Plans", href: "/admin/diet-plans", icon: Salad },
         { title: "Food Library", href: "/admin/foods", icon: Apple },
         { title: "Analytics", href: "/admin/analytics", icon: BarChart3, disabled: true },

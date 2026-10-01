@@ -20,7 +20,15 @@ import { DietPlanAssignment } from "@/server/models/diet-plan-assignment"
 import { DietPlanMeal } from "@/server/models/diet-plan-meal"
 import { DietPlanMealFood } from "@/server/models/diet-plan-meal-food"
 import { Food } from "@/server/models/food"
+import { Exercise } from "@/server/models/exercise"
+import { ExerciseSession } from "@/server/models/exercise-session"
 import { Gym } from "@/server/models/gym"
+import { SetLog } from "@/server/models/set-log"
+import { WorkoutPlan } from "@/server/models/workout-plan"
+import { WorkoutPlanAssignment } from "@/server/models/workout-plan-assignment"
+import { WorkoutPlanDay } from "@/server/models/workout-plan-day"
+import { WorkoutPlanExercise } from "@/server/models/workout-plan-exercise"
+import { WorkoutSession } from "@/server/models/workout-session"
 import { User } from "@/server/models/user"
 
 import { devAccounts, seedDevelopmentData } from "./lib/seed-data"
@@ -554,6 +562,193 @@ async function runPersonalPlans() {
 
 // ---------------------------------------------------------------- main
 
+// ---------------------------------------------------------------- workouts (Module 4)
+
+async function runWorkouts() {
+  console.log("\n── Workouts (Module 4)")
+  const idOf = async (email: string) => (await crossTenant(User.findOne({ email })).lean())!._id.toString()
+  const a1 = await idOf(gymA.members[0].email)
+  const a2 = await idOf(gymA.members[1].email)
+  const b1 = await idOf(gymB.members[0].email)
+  const gymAId = (await crossTenant(User.findOne({ email: gymA.admin.email })).lean())!.gymId!.toString()
+  const gymBId = (await crossTenant(User.findOne({ email: gymB.admin.email })).lean())!.gymId!.toString()
+  const adminA = await login(gymA.admin.email)
+  const adminB = await login(gymB.admin.email)
+  const memberA1 = await login(gymA.members[0].email)
+  const memberA2 = await login(gymA.members[1].email)
+  const memberB1 = await login(gymB.members[0].email)
+  const DAY = "2026-10-01"
+  const denied = (r: { status: number; location: string }) => r.status === 403 || redirectsTo(r, "/forbidden") || r.status === 404
+
+  const act = (file: string, name: string) => actionId(`src/server/actions/${file}.ts`, name)
+  const saveExercise = act("exercise-actions", "saveExerciseAction")
+  const createPlan = act("workout-plan-actions", "createWorkoutPlanAction")
+  const addDay = act("workout-plan-actions", "addWorkoutDayAction")
+  const updatePlan = act("workout-plan-actions", "updateWorkoutPlanAction")
+  const addPlanned = act("workout-plan-actions", "addPlannedExerciseAction")
+  const updatePlanned = act("workout-plan-actions", "updatePlannedExerciseAction")
+  const assign = act("member-workout-admin-actions", "assignWorkoutPlanAction")
+  const customize = act("workout-actions", "customizeMyWorkoutPlanAction")
+  const start = act("workout-actions", "startWorkoutAction")
+  const updateSet = act("workout-actions", "updateSetAction")
+  const addSet = act("workout-actions", "addSetAction")
+  const finish = act("workout-actions", "finishWorkoutAction")
+  const useMyPlan = act("workout-actions", "useMyWorkoutPlanAction")
+
+  // Route access.
+  for (const path of ["/admin/exercises", "/admin/workouts"]) {
+    check(`member cannot open ${path}`, denied(await request(memberA1.jar, path)))
+  }
+  for (const path of ["/workouts", "/workouts/plans", "/workouts/history"]) {
+    check(`gym admin cannot open member page ${path}`, denied(await request(adminA.jar, path)))
+  }
+  check("anonymous is sent to login for /workouts", redirectsTo(await request(new Map(), "/workouts"), "/login"))
+
+  // Exercise library: admin creates (forged gymId ignored); members can't.
+  await callFormAction(adminA.jar, "/admin/exercises", saveExercise, { name: "E2E Bench", muscleGroup: "Chest", category: "STRENGTH", gymId: gymBId }, [null])
+  const bench = await Exercise.findOne({ gymId: gymAId, name: "E2E Bench" }).lean()
+  check("admin creates an exercise in their own gym (forged gymId ignored)", Boolean(bench) && !(await Exercise.findOne({ gymId: gymBId, name: "E2E Bench" }).lean()))
+  await callFormAction(memberA1.jar, "/admin/exercises", saveExercise, { name: "Member Exercise", muscleGroup: "Chest", category: "STRENGTH" }, [null])
+  check("member cannot create an exercise", !(await Exercise.findOne({ gymId: gymAId, name: "Member Exercise" }).lean()))
+  await callFormAction(adminB.jar, "/admin/exercises", saveExercise, { name: "Hacked", muscleGroup: "Core", category: "OTHER" }, [bench!._id.toString()])
+  check("another gym's admin cannot edit the exercise", (await Exercise.findOne({ gymId: gymAId, _id: bench!._id }).lean())?.name === "E2E Bench")
+  check("another gym's admin does not see the exercise", !(await request(adminB.jar, "/admin/exercises")).body.includes("E2E Bench"))
+
+  // Gym plan via the real builder actions.
+  const created = await callFormAction(adminA.jar, "/admin/workouts", createPlan, { name: "E2E PPL", gymId: gymBId, ownerUserId: a1, createdBy: a2 })
+  const gymPlan = await WorkoutPlan.findOne({ gymId: gymAId, name: "E2E PPL" }).lean()
+  const gymPlanId = gymPlan?._id.toString() ?? ""
+  check(
+    "admin creates a gym plan (ownerUserId null, forged owner/createdBy/gymId ignored)",
+    Boolean(gymPlan) && gymPlan!.ownerUserId === null && gymPlan!.createdBy.toString() !== a2 &&
+      (created.response.headers.get("x-action-redirect") ?? "").startsWith(`/admin/workouts/${gymPlanId}`)
+  )
+  await callFormAction(adminA.jar, `/admin/workouts/${gymPlanId}`, addDay, { name: "Push" }, [gymPlanId])
+  const pushDay = (await WorkoutPlanDay.findOne({ gymId: gymAId, workoutPlanId: gymPlanId }).lean())!
+  await callFormAction(adminA.jar, `/admin/workouts/${gymPlanId}`, addPlanned, { exerciseId: bench!._id.toString(), sets: "4", repsMin: "6", repsMax: "8", targetWeight: "80", restSeconds: "120" }, [gymPlanId, pushDay._id.toString()])
+  const planned = await WorkoutPlanExercise.findOne({ gymId: gymAId, workoutPlanId: gymPlanId }).lean()
+  check("admin builds the plan (day + planned exercise with targets)", planned?.sets === 4 && planned.repsMax === 8 && planned.targetWeight === 80)
+  check("admin opens the builder (200)", (await request(adminA.jar, `/admin/workouts/${gymPlanId}`)).status === 200)
+  check("another gym's admin gets 404 for the plan", (await request(adminB.jar, `/admin/workouts/${gymPlanId}`)).status === 404)
+  await callFormAction(adminB.jar, "/admin/workouts", updatePlan, { name: "Cross-gym rename" }, [gymPlanId])
+  check("another gym's admin cannot rename it", (await WorkoutPlan.findOne({ gymId: gymAId, _id: gymPlanId }).lean())?.name === "E2E PPL")
+
+  const gymSnapshot = async () =>
+    JSON.stringify({
+      plan: (await WorkoutPlan.findOne({ gymId: gymAId, _id: gymPlanId }).lean())?.name,
+      days: (await WorkoutPlanDay.find({ gymId: gymAId, workoutPlanId: gymPlanId }).lean()).map((d) => d.name),
+      items: (await WorkoutPlanExercise.find({ gymId: gymAId, workoutPlanId: gymPlanId }).lean()).map((i) => [i.sets, i.repsMin, i.targetWeight]),
+    })
+  const before = await gymSnapshot()
+
+  // Assignment: forged member id from another gym, then the real one.
+  await callFormAction(adminA.jar, `/admin/members/${a1}`, assign, { workoutPlanId: gymPlanId, startDate: DAY }, [b1])
+  check("admin cannot assign to another gym's member", (await WorkoutPlanAssignment.countDocuments({ gymId: gymAId, userId: b1 })) + (await WorkoutPlanAssignment.countDocuments({ gymId: gymBId, userId: b1 })) === 0)
+  await callFormAction(adminB.jar, `/admin/members/${b1}`, assign, { workoutPlanId: gymPlanId, startDate: DAY }, [b1])
+  check("another gym's admin cannot assign this gym's plan", (await WorkoutPlanAssignment.countDocuments({ gymId: gymBId })) === 0)
+  await callFormAction(adminA.jar, `/admin/members/${a1}`, assign, { workoutPlanId: gymPlanId, startDate: "" }, [a1])
+  check("assignment without an explicit date is rejected (no server 'today')", (await WorkoutPlanAssignment.countDocuments({ gymId: gymAId, userId: a1 })) === 0)
+  await callFormAction(adminA.jar, `/admin/members/${a1}`, assign, { workoutPlanId: gymPlanId, startDate: DAY, memberId: a2, assignedBy: a2 }, [a1])
+  const assignment = await WorkoutPlanAssignment.findOne({ gymId: gymAId, userId: a1 }).lean()
+  check("admin assigns the gym plan (forged memberId/assignedBy ignored)", Boolean(assignment) && assignment!.assignedBy.toString() !== a2 && (await WorkoutPlanAssignment.countDocuments({ gymId: gymAId, userId: a2 })) === 0)
+  const second = await callFormAction(adminA.jar, `/admin/members/${a1}`, assign, { workoutPlanId: gymPlanId, startDate: "2026-10-02" }, [a1])
+  check("a second active assignment is refused without confirmation", second.body.includes("ACTIVE_WORKOUT_ASSIGNMENT_EXISTS") && (await WorkoutPlanAssignment.countDocuments({ gymId: gymAId, userId: a1, status: "ACTIVE" })) === 1)
+
+  // Member pages.
+  const day = await request(memberA1.jar, `/workouts?date=${DAY}`)
+  check("member sees the assigned plan", day.status === 200 && day.body.includes("E2E PPL") && day.body.includes("Start workout"))
+  const other = await request(memberA2.jar, `/workouts?date=${DAY}`)
+  check("a member without a plan sees none of it", other.status === 200 && !other.body.includes("E2E PPL"))
+  check("the page without ?date renders the browser-redirect shell (no server 'today')", (await request(memberA1.jar, "/workouts")).status === 200)
+  check("member gets 404 for the gym plan in the member builder", (await request(memberA1.jar, `/workouts/plans/${gymPlanId}`)).status === 404)
+
+  // Member cannot reach the gym plan through the builder actions (forged bound ids),
+  // called from a page that really hosts those actions: their own plan's builder.
+  await callFormAction(memberA1.jar, "/workouts/plans", createPlan, { name: "E2E A1 Plan" })
+  const a1Plan = (await WorkoutPlan.findOne({ gymId: gymAId, name: "E2E A1 Plan" }).lean())!._id.toString()
+  const a1PlanPage = `/workouts/plans/${a1Plan}`
+  await callFormAction(memberA1.jar, a1PlanPage, addDay, { name: "Mine" }, [a1Plan])
+  check("member builder actions work on their own plan (200 page, day added)", (await request(memberA1.jar, a1PlanPage)).status === 200 && (await WorkoutPlanDay.countDocuments({ gymId: gymAId, workoutPlanId: a1Plan })) === 1)
+  await callFormAction(memberA1.jar, a1PlanPage, addDay, { name: "Injected" }, [gymPlanId])
+  await callFormAction(memberA1.jar, a1PlanPage, updatePlan, { name: "Hijacked" }, [gymPlanId])
+  await callFormAction(memberA1.jar, a1PlanPage, updatePlanned, { sets: "9", repsMin: "1" }, [gymPlanId, planned!._id.toString()])
+  check("member cannot modify the gym's shared plan via builder actions", (await gymSnapshot()) === before)
+
+  // Member's own plan; admin read-only.
+  await callFormAction(memberA2.jar, "/workouts/plans", createPlan, { name: "E2E A2 Plan", ownerUserId: a1 })
+  const a2Plan = await WorkoutPlan.findOne({ gymId: gymAId, name: "E2E A2 Plan" }).lean()
+  check("member creates their own plan (owner = themselves)", a2Plan?.ownerUserId?.toString() === a2 && a2Plan.createdBy.toString() === a2)
+  check("another member gets 404 for it", (await request(memberA1.jar, `/workouts/plans/${a2Plan!._id}`)).status === 404)
+  check("admin can view it read-only", (await request(adminA.jar, `/admin/workouts/${a2Plan!._id}`)).status === 200)
+  await callFormAction(adminA.jar, "/admin/workouts", updatePlan, { name: "Admin rename" }, [a2Plan!._id.toString()])
+  check("admin cannot edit a member's personal plan", (await WorkoutPlan.findOne({ gymId: gymAId, _id: a2Plan!._id }).lean())?.name === "E2E A2 Plan")
+  check("admin's gym library excludes personal plans", !(await request(adminA.jar, "/admin/workouts")).body.includes("E2E A2 Plan"))
+  await callFormAction(memberA1.jar, a1PlanPage, useMyPlan, { startDate: DAY }, [a2Plan!._id.toString()])
+  check("a member cannot activate someone else's plan", (await WorkoutPlanAssignment.countDocuments({ gymId: gymAId, userId: a1, workoutPlanId: a2Plan!._id })) === 0)
+
+  // A2 gets a real plan and workout of their own, so forged calls originate from a page hosting those actions.
+  const a2Page = `/workouts/plans/${a2Plan!._id}`
+  await callFormAction(memberA2.jar, a2Page, addDay, { name: "A2 day" }, [a2Plan!._id.toString()])
+  const a2Day = (await WorkoutPlanDay.findOne({ gymId: gymAId, workoutPlanId: a2Plan!._id }).lean())!
+  await callFormAction(memberA2.jar, a2Page, addPlanned, { exerciseId: bench!._id.toString(), sets: "2", repsMin: "10" }, [a2Plan!._id.toString(), a2Day._id.toString()])
+  await callFormAction(memberA2.jar, a2Page, useMyPlan, { startDate: DAY }, [a2Plan!._id.toString()])
+  const a2Started = await jsonAction(memberA2.jar, `/workouts?date=${DAY}`, start, [DAY, a2Day._id.toString()])
+  const a2Session = await WorkoutSession.findOne({ gymId: gymAId, userId: a2 }).lean()
+  check("member can start a workout from their own plan", ok(a2Started) && a2Session?.status === "IN_PROGRESS")
+  const a2SessionPage = `/workouts/session/${a2Session!._id}`
+  check("their own session page is 200", (await request(memberA2.jar, a2SessionPage)).status === 200)
+
+  // Actual workout on the gym plan (before customizing): A1 logs sets.
+  const started = await jsonAction(memberA1.jar, `/workouts?date=${DAY}`, start, [DAY, pushDay._id.toString()])
+  const session = await WorkoutSession.findOne({ gymId: gymAId, userId: a1 }).lean()
+  check("member starts a workout (date as supplied)", ok(started) && session?.date === DAY && session.status === "IN_PROGRESS")
+  const sessionId = session!._id.toString()
+  const sets = await SetLog.find({ gymId: gymAId, workoutSessionId: sessionId }).sort({ setNumber: 1 }).lean()
+  check("planned sets are created empty (no values copied from the plan)", sets.length === 4 && sets.every((s) => s.weight === null && s.reps === null && !s.completed))
+  const logged = await jsonAction(memberA1.jar, `/workouts/session/${sessionId}`, updateSet, [sessionId, sets[0]._id.toString(), { weight: "85", reps: "6", weightUnit: "kg", completed: true }])
+  const set0 = await SetLog.findOne({ gymId: gymAId, _id: sets[0]._id }).lean()
+  check("member logs actual 85 × 6 against a planned 80 × 6–8", ok(logged) && set0?.weight === 85 && set0.reps === 6 && set0.completed)
+  check("the plan is unchanged by what was logged", (await gymSnapshot()) === before)
+
+  // Other members / gyms / admins vs this session.
+  check("member page for the session is 200 for the owner", (await request(memberA1.jar, `/workouts/session/${sessionId}`)).status === 200)
+  check("another member gets 404 for the session", (await request(memberA2.jar, `/workouts/session/${sessionId}`)).status === 404)
+  check("another gym's member gets 404 for the session", (await request(memberB1.jar, `/workouts/session/${sessionId}`)).status === 404)
+  await jsonAction(memberA2.jar, a2SessionPage, updateSet, [sessionId, sets[1]._id.toString(), { weight: "1", reps: "1", completed: true }])
+  await jsonAction(memberA2.jar, a2SessionPage, addSet, [sessionId, (await ExerciseSession.findOne({ gymId: gymAId, workoutSessionId: sessionId }).lean())!._id.toString(), { reps: "5" }])
+  await jsonAction(memberA2.jar, a2SessionPage, finish, [sessionId])
+  const stillOpen = await WorkoutSession.findOne({ gymId: gymAId, _id: sessionId }).lean()
+  check(
+    "another member cannot modify, extend or finish someone else's workout",
+    (await SetLog.findOne({ gymId: gymAId, _id: sets[1]._id }).lean())?.completed === false &&
+      (await SetLog.countDocuments({ gymId: gymAId, workoutSessionId: sessionId })) === 4 && stillOpen?.status === "IN_PROGRESS"
+  )
+  check("the member's admin can view the member page; another gym's admin gets 404", (await request(adminA.jar, `/admin/members/${a1}`)).status === 200 && (await request(adminB.jar, `/admin/members/${a1}`)).status === 404)
+
+  const done = await jsonAction(memberA1.jar, `/workouts/session/${sessionId}`, finish, [sessionId])
+  const finished = await WorkoutSession.findOne({ gymId: gymAId, _id: sessionId }).lean()
+  check("owner finishes the workout (real timestamps, calendar day kept)", ok(done) && finished?.status === "COMPLETED" && finished.date === DAY && Boolean(finished.completedAt))
+  const afterFinish = await jsonAction(memberA1.jar, `/workouts/session/${sessionId}`, updateSet, [sessionId, sets[0]._id.toString(), { weight: "999", reps: "1", completed: true }])
+  check("a finished workout can't be edited", !ok(afterFinish) && (await SetLog.findOne({ gymId: gymAId, _id: sets[0]._id }).lean())?.weight === 85)
+  const history = await request(memberA1.jar, "/workouts/history")
+  check("history shows the workout and the performed set", history.status === 200 && history.body.includes("Push") && history.body.includes("85 kg"))
+  check("another member's history shows none of it", !(await request(memberA2.jar, "/workouts/history")).body.includes("85 kg"))
+
+  // Customize.
+  const res = await jsonAction(memberA1.jar, `/workouts?date=${DAY}`, customize, ["2026-10-03"])
+  const copy = await WorkoutPlan.findOne({ gymId: gymAId, ownerUserId: a1, sourcePlanId: gymPlanId }).lean()
+  const active = await WorkoutPlanAssignment.findOne({ gymId: gymAId, userId: a1, status: "ACTIVE" }).lean()
+  check("customize copies the gym plan for this member and switches to it", ok(res) && Boolean(copy) && active?.workoutPlanId.toString() === copy!._id.toString() && active.assignedBy.toString() === a1)
+  check("copy has new day and exercise records", (await WorkoutPlanDay.countDocuments({ gymId: gymAId, workoutPlanId: copy!._id })) === 1 && !(await WorkoutPlanDay.exists({ gymId: gymAId, workoutPlanId: copy!._id, _id: pushDay._id })))
+  check("the gym plan is unchanged after customizing", (await gymSnapshot()) === before)
+  const again = await jsonAction(memberA1.jar, `/workouts?date=${DAY}`, customize, ["2026-10-04"])
+  check("customizing again does not create another copy", ok(again) && (await WorkoutPlan.countDocuments({ gymId: gymAId, ownerUserId: a1, sourcePlanId: gymPlanId })) === 1)
+  check("history still shows the workout done on the gym plan", (await request(memberA1.jar, "/workouts/history")).body.includes("E2E PPL"))
+  check("member opens their copy in the builder (200)", (await request(memberA1.jar, `/workouts/plans/${copy!._id}`)).status === 200)
+  const nonDate = await jsonAction(memberA1.jar, "/workouts", customize, ["not-a-date"])
+  check("customize with an invalid date is rejected", !ok(nonDate))
+}
+
 async function main() {
   if (!existsSync(".next/BUILD_ID")) throw new Error("Run `npm run build` first.")
 
@@ -587,6 +782,7 @@ async function main() {
     await run()
     await runNutrition()
     await runPersonalPlans()
+    await runWorkouts()
   } finally {
     server?.kill()
     await disconnectFromDatabase()
