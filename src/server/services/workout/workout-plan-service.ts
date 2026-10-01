@@ -6,10 +6,12 @@ import {
   objectIdSchema,
   plannedExerciseConfigSchema,
   reorderIdsSchema,
+  targetWeightSchema,
   workoutDaySchema,
   workoutPlanSchema,
   type AddPlannedExerciseInput,
   type PlannedExerciseConfigInput,
+  type TargetWeightInput,
   type WorkoutDayInput,
   type WorkoutPlanInput,
 } from "@/lib/validations/workout"
@@ -461,6 +463,27 @@ export async function updatePlannedExercise(editor: PlanEditor, plannedExerciseI
   await dbReady()
   await requireEditablePlannedExercise(scope, id)
   await WorkoutPlanExercise.updateOne(scopeToGym(scope, { _id: id }), { $set: data }, { runValidators: true })
+}
+
+/**
+ * Explicit "use this target weight" (never automatic). Goes through the same
+ * role-derived scope as every other edit: a member can only change their OWN
+ * personal plan — a shared gym plan is "not found" for them (they customize
+ * it first) — and an admin only gym plans. Only the target weight and unit
+ * change; sets, reps, rest and notes are left alone, and logged workouts keep
+ * their own snapshots.
+ */
+export async function setPlannedExerciseTargetWeight(editor: PlanEditor, plannedExerciseId: string, input: TargetWeightInput) {
+  const scope = editorScope(editor)
+  const id = parseInput(objectIdSchema, plannedExerciseId)
+  const data = parseInput(targetWeightSchema, input)
+  await dbReady()
+  await requireEditablePlannedExercise(scope, id)
+  await WorkoutPlanExercise.updateOne(
+    scopeToGym(scope, { _id: id }),
+    { $set: { targetWeight: data.targetWeight, weightUnit: data.weightUnit } },
+    { runValidators: true }
+  )
 }
 
 export async function removePlannedExercise(editor: PlanEditor, plannedExerciseId: string) {

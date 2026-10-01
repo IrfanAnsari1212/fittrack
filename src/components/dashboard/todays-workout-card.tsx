@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { CheckCircle2, Dumbbell, Play } from "lucide-react"
+import { CheckCircle2, Dumbbell, Medal, Play, TrendingUp } from "lucide-react"
 
 import { EmptyState } from "@/components/common/empty-state"
 import { DashboardCard, DashboardCardSkeleton } from "@/components/dashboard/dashboard-card"
@@ -12,7 +12,9 @@ import { StartWorkoutButton } from "@/components/workout/member/start-workout-bu
 import type { ActionResult } from "@/lib/form-state"
 import { useLocalCalendarDate } from "@/lib/nutrition/use-local-date"
 import { formatTarget } from "@/lib/workout/format"
+import { getPerformanceHighlightAction } from "@/server/actions/performance-actions"
 import { getWorkoutDayAction } from "@/server/actions/workout-actions"
+import type { PerformanceHighlight } from "@/types/performance"
 import type { WorkoutDayOverview } from "@/types/workout"
 
 /**
@@ -37,6 +39,18 @@ export function TodaysWorkoutCard() {
     }
   }, [date])
 
+  // Latest completed workout's headline (no calendar day involved).
+  const [highlight, setHighlight] = useState<PerformanceHighlight | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    getPerformanceHighlightAction().then((value) => {
+      if (!cancelled && value.ok) setHighlight(value.data ?? null)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const loaded = result?.date === date ? result.value : undefined
   if (!loaded) return <DashboardCardSkeleton rows={4} />
 
@@ -49,6 +63,15 @@ export function TodaysWorkoutCard() {
   }
 
   const overview = loaded.data!
+  const progressLine = highlight && (
+    <Link href="/workouts/progress" className="flex items-start gap-2 rounded-lg border px-3 py-2 text-sm hover:bg-muted/50">
+      {highlight.kind === "PR" ? <Medal className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden /> : <TrendingUp className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />}
+      <span>
+        <span className="font-medium">{highlight.exerciseName}</span>
+        <span className="text-muted-foreground"> — {highlight.text}</span>
+      </span>
+    </Link>
+  )
   const href = `/workouts?date=${overview.date}`
   const planDay = overview.plan?.plan.days.find((d) => d.id === overview.suggestedDayId)
 
@@ -78,6 +101,7 @@ export function TodaysWorkoutCard() {
             </Button>
           }
         />
+        {progressLine && <div className="mt-3">{progressLine}</div>}
       </DashboardCard>
     )
   }
@@ -124,6 +148,7 @@ export function TodaysWorkoutCard() {
             Open
           </Button>
         </div>
+        {progressLine}
       </div>
     </DashboardCard>
   )

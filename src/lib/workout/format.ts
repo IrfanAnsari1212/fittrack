@@ -49,3 +49,21 @@ export function formatCalendarDay(date: string): string {
     new Date(`${date}T00:00:00Z`)
   )
 }
+
+/** "Oct 5" for a "YYYY-MM-DD" calendar day (no timezone shift). */
+export function formatShortDay(date: string): string {
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).format(new Date(`${date}T00:00:00Z`))
+}
+
+/** "1,840 kg" — a derived amount (volume, e1RM) with thousands separators and ≤1 decimal. */
+export function formatAmountWithUnit(value: number | null, unit: string): string {
+  if (value == null) return "—"
+  return `${value.toLocaleString("en-US", { maximumFractionDigits: 1 })} ${unit}`
+}
+
+/** "+5 kg" / "−2 kg" / "no change" for a signed difference. */
+export function formatSigned(diff: number | null, unit: string): string | null {
+  if (diff == null) return null
+  if (Math.abs(diff) < 0.05) return "no change"
+  return `${diff > 0 ? "+" : "−"}${Math.abs(diff).toLocaleString("en-US", { maximumFractionDigits: 1 })} ${unit}`.trim()
+}

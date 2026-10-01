@@ -749,6 +749,83 @@ async function runWorkouts() {
   check("customize with an invalid date is rejected", !ok(nonDate))
 }
 
+// ---------------------------------------------------------------- performance (Module 5)
+
+async function runPerformance() {
+  console.log("\n── Performance (Module 5)")
+  const idOf = async (email: string) => (await crossTenant(User.findOne({ email })).lean())!._id.toString()
+  const a1 = await idOf(gymA.members[0].email)
+  const a2 = await idOf(gymA.members[1].email)
+  const b1 = await idOf(gymB.members[0].email)
+  const gymAId = (await crossTenant(User.findOne({ email: gymA.admin.email })).lean())!.gymId!.toString()
+  const adminA = await login(gymA.admin.email)
+  const adminB = await login(gymB.admin.email)
+  const memberA1 = await login(gymA.members[0].email)
+  const memberA2 = await login(gymA.members[1].email)
+  const memberB1 = await login(gymB.members[0].email)
+  const denied = (r: { status: number; location: string }) => r.status === 403 || redirectsTo(r, "/forbidden") || r.status === 404
+
+  const bench = (await Exercise.findOne({ gymId: gymAId, name: "E2E Bench" }).lean())!._id.toString()
+  const act = (file: string, name: string) => actionId(`src/server/actions/${file}.ts`, name)
+  const apply = act("performance-actions", "applySuggestedTargetAction")
+  const progressPath = `/workouts/progress?exercise=${bench}`
+
+  // Routes.
+  check("anonymous is sent to login for /workouts/progress", redirectsTo(await request(new Map(), "/workouts/progress"), "/login"))
+  check("gym admin cannot open the member progress page", denied(await request(adminA.jar, "/workouts/progress")))
+  check("member cannot open an admin member-progress page", denied(await request(memberA1.jar, `/admin/members/${a1}/progress`)))
+
+  // A1 has a completed workout (85 kg × 6 on the gym plan's bench); A2 only has one in progress; B1 nothing.
+  const mine = await request(memberA1.jar, progressPath)
+  check(
+    "member sees their own progress, records and the estimated-1RM disclaimer",
+    mine.status === 200 && mine.body.includes("E2E Bench") && mine.body.includes("Personal records") && mine.body.includes("Estimated 1RM") && mine.body.includes("not a tested one-rep max")
+  )
+  check("a single session says to complete more to compare", mine.body.includes("Complete more sessions to compare your progress."))
+  const a2Page = await request(memberA2.jar, progressPath)
+  check("another member sees none of it (in-progress workouts don't count)", a2Page.status === 200 && !a2Page.body.includes("Personal records") && a2Page.body.includes("No completed workouts yet."))
+  const b1Page = await request(memberB1.jar, progressPath)
+  check("another gym's member gets an empty state for the same exercise id", b1Page.status === 200 && !b1Page.body.includes("Personal records") && b1Page.body.includes("No completed workouts yet."))
+  const forged = await request(memberA1.jar, "/workouts/progress?exercise=zzz&from=nope&to=nope&memberId=" + a2 + "&userId=" + a2 + "&gymId=x")
+  check("forged/invalid query values are ignored (still my own data)", forged.status === 200 && forged.body.includes("E2E Bench"))
+
+  // Admin: own gym's members only.
+  const adminView = await request(adminA.jar, `/admin/members/${a1}/progress?exercise=${bench}`)
+  check("admin sees their member's progress read-only (no apply button)", adminView.status === 200 && adminView.body.includes("Personal records") && !adminView.body.includes("Update my plan"))
+  check("another gym's admin gets 404 for the member", (await request(adminB.jar, `/admin/members/${a1}/progress`)).status === 404)
+  check("admin gets 404 for another gym's member", (await request(adminA.jar, `/admin/members/${b1}/progress`)).status === 404)
+
+  // History and the finished-session page.
+  const session = await WorkoutSession.findOne({ gymId: gymAId, userId: a1, status: "COMPLETED" }).lean()
+  const sessionPage = await request(memberA1.jar, `/workouts/session/${session!._id}`)
+  check("a finished workout shows how it compares", sessionPage.status === 200 && sessionPage.body.includes("How this workout compares"))
+  const historyText = (await request(memberA1.jar, "/workouts/history")).body.replace(/<!-- -->/g, "")
+  check("history shows planned vs actual from the workout's own snapshot", historyText.includes("Planned 80 kg") && historyText.includes("actual") && historyText.includes("+5 kg"))
+
+  // The plan never changes by itself; the apply action is explicit and ownership-checked.
+  const gymItem = (await WorkoutPlanExercise.findOne({ gymId: gymAId, workoutPlanId: (await WorkoutPlan.findOne({ gymId: gymAId, name: "E2E PPL" }).lean())!._id }).lean())!
+  const copyPlan = (await WorkoutPlan.findOne({ gymId: gymAId, ownerUserId: a1, sourcePlanId: gymItem.workoutPlanId }).lean())!
+  const copyItem = (await WorkoutPlanExercise.findOne({ gymId: gymAId, workoutPlanId: copyPlan._id }).lean())!
+  const itemSnapshot = async () => JSON.stringify((await WorkoutPlanExercise.find({ gymId: gymAId }).sort({ _id: 1 }).lean()).map((i) => [i._id, i.targetWeight, i.sets]))
+  const before = await itemSnapshot()
+  await request(memberA1.jar, progressPath)
+  await request(memberA1.jar, "/workouts/history")
+  check("viewing progress/history never modifies any plan", (await itemSnapshot()) === before)
+
+  await jsonAction(memberA1.jar, progressPath, apply, [gymItem._id.toString(), 87.5, "kg"])
+  check("a member cannot change the shared gym plan's target", (await WorkoutPlanExercise.findOne({ gymId: gymAId, _id: gymItem._id }).lean())?.targetWeight === gymItem.targetWeight)
+  await jsonAction(memberA2.jar, progressPath, apply, [copyItem._id.toString(), 1, "kg"])
+  check("another member cannot change my personal plan's target", (await WorkoutPlanExercise.findOne({ gymId: gymAId, _id: copyItem._id }).lean())?.targetWeight === copyItem.targetWeight)
+  await jsonAction(adminA.jar, `/admin/members/${a1}/progress`, apply, [copyItem._id.toString(), 2, "kg"])
+  check("a gym admin cannot use the member action to change a personal plan", (await WorkoutPlanExercise.findOne({ gymId: gymAId, _id: copyItem._id }).lean())?.targetWeight === copyItem.targetWeight)
+  const own = await jsonAction(memberA1.jar, progressPath, apply, [copyItem._id.toString(), 87.5, "kg"])
+  const updated = await WorkoutPlanExercise.findOne({ gymId: gymAId, _id: copyItem._id }).lean()
+  check("the member explicitly updates their own plan's target", ok(own) && updated?.targetWeight === 87.5 && updated.sets === copyItem.sets)
+  check("their finished workout's snapshot is unchanged", (await ExerciseSession.findOne({ gymId: gymAId, workoutSessionId: session!._id, exerciseId: bench }).lean())?.planned.targetWeight === 80)
+  const bad = await jsonAction(memberA1.jar, progressPath, apply, [copyItem._id.toString(), -5, "kg"])
+  check("an invalid target is rejected", !ok(bad) && (await WorkoutPlanExercise.findOne({ gymId: gymAId, _id: copyItem._id }).lean())?.targetWeight === 87.5)
+}
+
 async function main() {
   if (!existsSync(".next/BUILD_ID")) throw new Error("Run `npm run build` first.")
 
@@ -783,6 +860,7 @@ async function main() {
     await runNutrition()
     await runPersonalPlans()
     await runWorkouts()
+    await runPerformance()
   } finally {
     server?.kill()
     await disconnectFromDatabase()

@@ -101,6 +101,16 @@ export const addPlannedExerciseSchema = z
   .object({ exerciseId: objectIdSchema, ...plannedExerciseShape })
   .refine(repsInRange, repsRangeError)
 
+/** Explicitly adopting a suggested target weight on one planned exercise. */
+export const targetWeightSchema = z.object({
+  targetWeight: requiredNumber({ positive: true, max: 2000 }),
+  weightUnit: weightUnitSchema,
+})
+export interface TargetWeightInput {
+  targetWeight: NumericInput
+  weightUnit?: WeightUnit
+}
+
 export interface PlannedExerciseConfigInput {
   sets: NumericInput
   repsMin: NumericInput

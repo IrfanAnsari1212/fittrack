@@ -7,9 +7,11 @@ import { PageHeader } from "@/components/common/page-header"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { SessionLogger } from "@/components/workout/member/session-logger"
+import { SessionPerformance } from "@/components/workout/performance/session-performance"
 import { formatCalendarDay, formatDuration } from "@/lib/workout/format"
 import { requireMember } from "@/server/auth/session"
 import { selfTarget } from "@/server/services/nutrition/member-target"
+import { getSessionPerformance } from "@/server/services/workout/performance-service"
 import { getWorkoutSession } from "@/server/services/workout/workout-session-service"
 
 export const metadata: Metadata = { title: "Workout" }
@@ -22,6 +24,7 @@ export default async function WorkoutSessionPage({ params }: PageProps<"/workout
   if (!session) notFound()
 
   const finished = session.status === "COMPLETED"
+  const performance = finished ? await getSessionPerformance(selfTarget(member), session.id) : []
 
   return (
     <div className="space-y-6">
@@ -39,6 +42,7 @@ export default async function WorkoutSessionPage({ params }: PageProps<"/workout
           <AlertDescription>Workout saved. It&apos;s in your history and can no longer be edited.</AlertDescription>
         </Alert>
       )}
+      {finished && <SessionPerformance performance={performance} />}
       <SessionLogger session={session} />
     </div>
   )

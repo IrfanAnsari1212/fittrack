@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import { CheckCircle2, Dumbbell, History, ListChecks, Pencil, Play } from "lucide-react"
+import { CheckCircle2, Dumbbell, History, ListChecks, Pencil, Play, TrendingUp } from "lucide-react"
 
 import { EmptyState } from "@/components/common/empty-state"
 import { PageHeader } from "@/components/common/page-header"
@@ -54,6 +54,10 @@ export default async function WorkoutsPage({ searchParams }: PageProps<"/workout
             <Button variant="outline" size="sm" nativeButton={false} render={<Link href="/workouts/plans" />}>
               <ListChecks data-icon="inline-start" />
               My plans
+            </Button>
+            <Button variant="outline" size="sm" nativeButton={false} render={<Link href="/workouts/progress" />}>
+              <TrendingUp data-icon="inline-start" />
+              Progress
             </Button>
             <Button variant="outline" size="sm" nativeButton={false} render={<Link href="/workouts/history" />}>
               <History data-icon="inline-start" />

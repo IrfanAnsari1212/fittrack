@@ -2,7 +2,8 @@ import Link from "next/link"
 
 import { StatusBadge } from "@/components/admin/status-badge"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { AssignWorkoutPlanForm } from "@/components/workout/admin/assign-workout-plan-form"
 import { EndWorkoutAssignmentButtons } from "@/components/workout/admin/end-workout-assignment-buttons"
@@ -92,6 +93,11 @@ export async function MemberWorkoutSection({ admin, memberId }: { admin: GymAdmi
           <CardHeader>
             <CardTitle>Recent workouts</CardTitle>
             <CardDescription>What the member actually did (read-only).</CardDescription>
+            <CardAction>
+              <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/admin/members/${memberId}/progress`} />}>
+                View progress
+              </Button>
+            </CardAction>
           </CardHeader>
           <CardContent>
             {history.length === 0 ? (

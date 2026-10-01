@@ -110,6 +110,17 @@ Same ownership architecture as nutrition: **Gym Plan → Assignment → Customiz
 - **One active plan per member** (partial unique index) and **one workout in progress per member**; replacing a plan needs explicit `replaceActive`.
 - **Dates:** calendar days (assignment start/end, session `date`, history filters) come from the browser; `startedAt`/`completedAt` are real instants.
 
+### Performance tracking (Module 5)
+
+A **read-only analysis layer** over Module 4's completed workouts — no new collections, nothing is stored or cached, and no plan is ever changed automatically.
+
+- **Source of truth:** completed `WorkoutSession`s → `ExerciseSession` (immutable planned snapshot) → actual `SetLog`s. In-progress workouts are ignored. Pure math lives in `src/lib/workout/performance.ts` (metrics, comparison, records, recommendation); `performance-service.ts` loads the data (every query scoped to the member target; one exercise's history is capped at 1,000 workouts).
+- **Metrics:** best weight, best reps, volume (Σ weight × reps), estimated 1RM (Epley, `w × (1 + reps/30)`, sets of 1–12 reps only; always labelled *estimated*), personal records (highest weight / reps / e1RM / session volume — a worse session never lowers them), current-vs-previous comparison. Mixed kg/lb is converted to the exercise's latest unit; bodyweight sets count for reps only.
+- **Recommendations are conservative:** facts first ("Reps decreased from 8 to 6 at the same weight."), a gentle suggestion only at the top of the planned rep range (or after two sessions hitting a fixed target). A concrete weight appears **only** from the member's own observed increase step — never a universal +2.5/+5 kg.
+- **Explicit plan updates only:** "Use 87.5 kg" is a confirmed action that edits the target weight of a planned exercise in the member's **own personal plan**. A shared gym plan is "not found" for members (customize it first); admins keep editing gym plans through the builder. Finished workouts keep their snapshots.
+- **UI:** `/workouts/progress?exercise=` (member), `/admin/members/[id]/progress` (read-only, own gym), a comparison card on finished workouts, planned-vs-actual in history, one line on the dashboard. Charts are a small dependency-free SVG component (no chart library is installed).
+- **Dates:** progress uses no "today" at all; optional `from`/`to` filters are explicit calendar days.
+
 ### Where things live
 
 ```
