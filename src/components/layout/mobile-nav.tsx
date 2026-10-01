@@ -14,8 +14,9 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet"
+import { homePathFor, type Role } from "@/lib/auth/roles"
 
-export function MobileNav() {
+export function MobileNav({ role }: { role: Role }) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -35,14 +36,14 @@ export function MobileNav() {
       <SheetContent side="left" className="w-72 bg-sidebar p-0">
         <SheetHeader className="h-16 justify-center px-6">
           <SheetTitle render={<div />}>
-            <Logo href="/dashboard" />
+            <Logo href={homePathFor(role)} />
           </SheetTitle>
           <SheetDescription className="sr-only">
             Main navigation
           </SheetDescription>
         </SheetHeader>
         <div className="overflow-y-auto px-3 pb-6">
-          <NavLinks onNavigate={() => setOpen(false)} />
+          <NavLinks role={role} onNavigate={() => setOpen(false)} />
         </div>
       </SheetContent>
     </Sheet>

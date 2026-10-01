@@ -21,7 +21,7 @@ export function SiteHeader() {
             Log in
           </Button>
           <Button nativeButton={false} render={<Link href="/register" />}>
-            Get started
+            Get an account
           </Button>
         </div>
       </div>

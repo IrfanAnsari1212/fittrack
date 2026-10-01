@@ -1,8 +1,26 @@
 import { AppHeader } from "@/components/layout/app-header"
 import { AppSidebar } from "@/components/layout/app-sidebar"
+import { roleLabels } from "@/lib/auth/roles"
+import type { SessionUser } from "@/types/auth"
 
 /** Authenticated-app chrome: sidebar + header + scrollable content area. */
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({
+  user,
+  children,
+}: {
+  user: SessionUser
+  children: React.ReactNode
+}) {
+  const contextLabel = user.gymName ?? "FitTrack Platform"
+  const menuUser = {
+    name: user.name,
+    email: user.email,
+    image: user.image,
+    roleLabel: user.gymName
+      ? `${roleLabels[user.role]} · ${user.gymName}`
+      : roleLabels[user.role],
+  }
+
   return (
     <div className="min-h-screen bg-muted/30">
       <a
@@ -11,9 +29,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       >
         Skip to content
       </a>
-      <AppSidebar />
+      <AppSidebar role={user.role} contextLabel={contextLabel} />
       <div className="flex min-h-screen flex-col lg:pl-64">
-        <AppHeader />
+        <AppHeader role={user.role} user={menuUser} />
         <main
           id="main-content"
           className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 lg:py-8"

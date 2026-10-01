@@ -1,9 +1,10 @@
 "use client"
 
+import { useTransition } from "react"
 import Link from "next/link"
-import { LogOut, Settings, User } from "lucide-react"
+import { LogOut, User } from "lucide-react"
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -14,11 +15,26 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { placeholderUser } from "@/lib/site-config"
+import { logoutAction } from "@/server/actions/auth-actions"
 
-/** Placeholder profile menu. Wire to the real session once auth exists. */
-export function UserMenu() {
-  const user = placeholderUser
+export interface UserMenuUser {
+  name: string
+  email: string
+  image: string | null
+  roleLabel: string
+}
+
+function initialsOf(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("")
+}
+
+export function UserMenu({ user }: { user: UserMenuUser }) {
+  const [isPending, startTransition] = useTransition()
 
   return (
     <DropdownMenu>
@@ -33,7 +49,8 @@ export function UserMenu() {
         }
       >
         <Avatar>
-          <AvatarFallback>{user.initials}</AvatarFallback>
+          {user.image && <AvatarImage src={user.image} alt="" />}
+          <AvatarFallback>{initialsOf(user.name)}</AvatarFallback>
         </Avatar>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
@@ -43,23 +60,21 @@ export function UserMenu() {
               {user.name}
             </span>
             <span className="block truncate">{user.email}</span>
+            <span className="mt-1 block text-xs">{user.roleLabel}</span>
           </DropdownMenuLabel>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuGroup>
-          <DropdownMenuItem render={<Link href="/profile" />}>
-            <User />
-            Profile
-          </DropdownMenuItem>
-          <DropdownMenuItem disabled>
-            <Settings />
-            Settings
-          </DropdownMenuItem>
-        </DropdownMenuGroup>
+        <DropdownMenuItem render={<Link href="/profile" />}>
+          <User />
+          Profile
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem render={<Link href="/login" />}>
+        <DropdownMenuItem
+          disabled={isPending}
+          onClick={() => startTransition(() => logoutAction())}
+        >
           <LogOut />
-          Log out
+          {isPending ? "Logging out…" : "Log out"}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

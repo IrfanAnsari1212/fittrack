@@ -1,9 +1,12 @@
 import { AppShell } from "@/components/layout/app-shell"
+import { requireAuth } from "@/server/auth/session"
 
 /**
- * Layout for all signed-in routes. When auth is added, the session check /
- * redirect belongs here (or in `proxy.ts`), not in individual pages.
+ * Shell for every signed-in route. The check here only decides what chrome
+ * to render; each page and server action still calls its own `require*`
+ * helper, because layouts don't re-run on client-side navigation.
  */
-export default function AppLayout({ children }: LayoutProps<"/">) {
-  return <AppShell>{children}</AppShell>
+export default async function AppLayout({ children }: LayoutProps<"/">) {
+  const user = await requireAuth()
+  return <AppShell user={user}>{children}</AppShell>
 }

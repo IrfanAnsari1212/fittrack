@@ -43,17 +43,17 @@ export default function LandingPage() {
             so you can focus on showing up.
           </p>
           <div className="mt-10 flex flex-col justify-center gap-3 sm:flex-row">
-            <Button size="lg" nativeButton={false} render={<Link href="/register" />}>
-              Create free account
+            <Button size="lg" nativeButton={false} render={<Link href="/login" />}>
+              Log in
               <ArrowRight data-icon="inline-end" />
             </Button>
             <Button
               size="lg"
               variant="outline"
               nativeButton={false}
-              render={<Link href="/dashboard" />}
+              render={<Link href="/register" />}
             >
-              View demo dashboard
+              How to get an account
             </Button>
           </div>
         </div>

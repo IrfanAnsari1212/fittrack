@@ -24,3 +24,10 @@ export function formatSignedDelta(value: number, fractionDigits = 1) {
   if (value < 0) return `−${fixed}`
   return fixed
 }
+
+const dateFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeZone: "UTC" })
+
+/** ISO string → "Oct 1, 2026". */
+export function formatDate(iso: string | null | undefined) {
+  return iso ? dateFormatter.format(new Date(iso)) : "—"
+}
