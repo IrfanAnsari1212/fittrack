@@ -10,7 +10,8 @@
     "db:dev": "tsx scripts/dev-db.ts",
     "db:seed": "tsx scripts/seed.ts",
     "test": "tsx --test tests/*.test.ts",
-    "test:e2e": "tsx scripts/e2e-security.ts"
+    "test:e2e": "tsx scripts/e2e-security.ts",
+    "create-super-admin": "tsx scripts/create-super-admin.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

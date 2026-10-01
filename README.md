@@ -7,7 +7,7 @@ Multi-tenant fitness platform for gyms — Next.js 16 (App Router), TypeScript, 
 ```bash
 npm install
 cp .env.example .env.local   # then fill in MONGODB_URI and AUTH_SECRET
-npm run db:seed -- --allow-remote   # fake dev accounts (see below)
+npm run create-super-admin          # your real platform admin account
 npm run dev                          # http://localhost:3000
 ```
 
@@ -29,7 +29,15 @@ Real values live only in `.env.local` (git-ignored). `.env.example` holds placeh
 - **Atlas (recommended):** paste the connection string into `.env.local`, add `/fittrack` as the database name.
 - **Local, zero-install:** `npm run db:dev` starts an in-memory replica set on port 27018 and prints its URI. Data is lost when stopped.
 
-### Seed data
+### First Super Admin
+
+```bash
+npm run create-super-admin
+```
+
+Prompts for name, email and password (hidden) and creates a platform Super Admin in the database from `MONGODB_URI`. Log in with it, then create gyms from **Super Admin → Gyms → New gym**. Safe to re-run for additional Super Admins; existing emails are refused.
+
+### Seed data (optional, fake)
 
 ```bash
 npm run db:seed                    # local databases
