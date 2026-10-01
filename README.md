@@ -80,6 +80,14 @@ Both use a throwaway in-memory MongoDB; they never touch `MONGODB_URI`.
 3. **Scope every tenant query** with `scopeToGym(ctx, filter)` or `scopeToMember(ctx, filter)` (`src/server/tenant.ts`). New gym-owned models (Meal, Workout, …) get `gymId` + `userId` fields and `schema.plugin(tenantGuardPlugin)`.
 4. **The tenant guard throws on unscoped queries.** Intentional cross-tenant reads (login, Super Admin reports) must be wrapped in `crossTenant(query)` so they're easy to audit. `populate()` of tenant models is blocked — fetch them explicitly.
 
+### Nutrition data (Module 3A)
+
+- **Planned** (DietPlan → DietPlanMeal → DietPlanMealFood → Food, assigned via DietPlanAssignment) is separate from **actual** consumption (DailyNutritionLog, whose entries snapshot nutrition at logging time).
+- Member-owned services (goals, assignments, logs) take a `MemberTarget` from `selfTarget(member)`, `gymMemberTarget(admin, memberId)` or `platformMemberTarget(superAdmin, memberId)` (read-only) — never a raw userId.
+- Services validate their own input with Zod (`src/lib/validations/nutrition.ts`) and throw `ValidationError` / `DomainError`; `domainErrorState()` turns those into form errors.
+- Nutrition math lives in `src/lib/nutrition/calculations.ts` (pure, tested). Days are `"YYYY-MM-DD"` strings.
+- **Calendar dates are always supplied by the caller.** User-facing days — `getCurrentNutritionGoal(asOf)`, `setNutritionGoal({ effectiveFrom })`, `assignDietPlan({ startDate })`, `endDietPlanAssignment({ endDate })`, daily-log `date` — are required parameters, computed by the caller in the relevant user/gym timezone (e.g. in the browser: `new Intl.DateTimeFormat("en-CA").format(new Date())`). Services never fall back to the server's UTC clock, which is a day off from members near midnight and would store the wrong day; a missing date is a validation error. A stored per-user/per-gym timezone is not implemented yet.
+
 ### Where things live
 
 ```
